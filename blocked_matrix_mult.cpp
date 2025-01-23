@@ -11,23 +11,15 @@ auto duration_time = std::chrono::duration_cast<std::chrono::microseconds>(end_t
 
 constexpr size_t goalsize = 512;
 
-std::set<size_t> n2powers{ 1 << 1,1 << 2,1 << 3,1 << 4,1 << 5,1 << 6,1 << 7,1 << 8,1 << 9,1 << 10,
-							1 << 11,1 << 12,1 << 13,1 << 14, 1 << 15, 1 << 16, 1 << 17, 1 << 18, 1 << 19, 1 << 20,
-							1 << 21,1 << 22,1 << 23,1 << 24, 1 << 25, 1 << 26, 1 << 27, 1 << 28, 1 << 29, 1 << 30 };
-
-void mat_free(double** A) {
-	free(A[0]);
-	free(A);
-}
-
 double** mat_transpose(double** mat, size_t xbeg, size_t xend, size_t ybeg, size_t yend) {
 	size_t xlen = xend - xbeg;
 	size_t ylen = yend - ybeg;
-	double* pans = (double*)malloc(sizeof(double) * xlen * ylen);
+	/*double* pans = (double*)malloc(sizeof(double) * xlen * ylen);
 	double** ans = (double**)malloc(sizeof(double*) * ylen);
 	for (int i = 0;i < ylen;++i) {
 		ans[i] = pans + i * xlen;
-	}
+	}*/
+	double** ans = create_null_mat(xlen, ylen);
 #pragma omp parallel for collapse(2)
 	for (int i = 0; i < xlen; ++i) {
 		for (int j = 0; j < ylen; ++j) {
@@ -45,12 +37,13 @@ double** base_mat_mult(double** A, double** B,
 	size_t Bx = Bxend - Bxbeg;
 	size_t By = Byend - Bybeg;
 	double** Btrans = mat_transpose(B, Bxbeg, Bxend, Bybeg, Byend);
-	double* pans = (double*)malloc(sizeof(double) * Ax * By);
+	/*double* pans = (double*)malloc(sizeof(double) * Ax * By);
 	memset(pans, 0, sizeof(double) * Ax * By);
 	double** ans = (double**)malloc(sizeof(double*) * Ax);
 	for (int i = 0;i < Ax;++i) {
 		ans[i] = pans + i * By;
-	}
+	}*/
+	double** ans = create_null_mat(Ax, By);
 #pragma omp parallel for collapse(2)
 	for (int i = 0;i < Ax;++i) {
 		for (int j = 0;j < By;++j) {
@@ -132,12 +125,8 @@ double** split_mat_mult(double** A, double** B,
 		return base_mat_mult(A, B, Axbeg, Axend, Aybeg, Ayend, Bxbeg, Bxend, Bybeg, Byend);
 	}
 
-	double* pans = (double*)malloc(sizeof(double) * Ax * By);
-	memset(pans, 0, sizeof(double) * Ax * By);
-	double** ans = (double**)malloc(sizeof(double*) * Ax);
-	for (int i = 0;i < Ax;++i) {
-		ans[i] = pans + i * By;
-	}
+	double** ans = create_null_mat(Ax, By);
+	memset(ans[0], 0, sizeof(double) * Ax * By);
 
 	size_t Axhalf = (Axbeg + Axend) / 2;
 	size_t Ayhalf = (Aybeg + Ayend) / 2;
@@ -195,23 +184,23 @@ double** split_mat_mult(double** A, double** B,
 	mat_plus_equ(ans, Ax / 2, Ax, By / 2, By, P3, 0, Ax / 2, 0, By / 2, -1);
 	mat_plus_equ(ans, Ax / 2, Ax, By / 2, By, P7, 0, Ax / 2, 0, By / 2, -1);
 
-	mat_free(S1);
-	mat_free(S2);
-	mat_free(S3);
-	mat_free(S4);
-	mat_free(S5);
-	mat_free(S6);
-	mat_free(S7);
-	mat_free(S8);
-	mat_free(S9);
-	mat_free(S10);
-	mat_free(P1);
-	mat_free(P2);
-	mat_free(P3);
-	mat_free(P4);
-	mat_free(P5);
-	mat_free(P6);
-	mat_free(P7);
+	free_mat(S1);
+	free_mat(S2);
+	free_mat(S3);
+	free_mat(S4);
+	free_mat(S5);
+	free_mat(S6);
+	free_mat(S7);
+	free_mat(S8);
+	free_mat(S9);
+	free_mat(S10);
+	free_mat(P1);
+	free_mat(P2);
+	free_mat(P3);
+	free_mat(P4);
+	free_mat(P5);
+	free_mat(P6);
+	free_mat(P7);
 
 	return ans;
 }
@@ -228,47 +217,46 @@ double** blocked_matrix_mult(double** A, size_t nA, size_t mA, double** B, size_
 	duration_time = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
 	std::cout << "n1 = " << nA << " , n2 = " << mA << " , n3 = " << mB << '\n';
 	std::cout << "cpu time: " << duration_time.count() << " microseconds" << '\n';
-	std::cout << "cpu time: " << duration_time.count() / 1e6 << "seconds" << '\n';
+	std::cout << "          " << duration_time.count() / 1e6 << " seconds" << '\n';
 
 	return ans;
 }
 
-void do_mat_mult(const std::string& fimark) {
-	double** matA, ** matB;
-	size_t n1, n2, n3;
-	read_mat(&matA, &matB, &n1, &n2, &n3, "D:\\vs2022_cppprj\\hpcgame\\g02\\matrix_mult\\conf_" + fimark + ".data");
-	double** matC = blocked_matrix_mult(matA, n1, n2, matB, n2, n3);
-	auto duration_omp = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
-	std::cout << "calc time:\t" << duration_omp.count() << " microseconds" << '\n';
-	std::cout << "           \t" << duration_omp.count() / 1e6 << " seconds" << std::endl;
-	save_mat(matC, n1, n3, "out_" + fimark + ".data");
-	mat_free(matA);
-	mat_free(matB);
-	mat_free(matC);
-}
+//void do_mat_mult(const std::string& fimark) {
+//	double** matA, ** matB;
+//	size_t n1, n2, n3;
+//	read_mat(&matA, &matB, &n1, &n2, &n3, "D:\\vs2022_cppprj\\hpcgame\\g02\\matrix_mult\\conf_" + fimark + ".data");
+//	double** matC = blocked_matrix_mult(matA, n1, n2, matB, n2, n3);
+//	auto duration_omp = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+//	std::cout << "calc time:\t" << duration_omp.count() << " microseconds" << '\n';
+//	std::cout << "           \t" << duration_omp.count() / 1e6 << " seconds" << std::endl;
+//	save_mat(matC, n1, n3, "out_" + fimark + ".data");
+//	free_mat(matA);
+//	free_mat(matB);
+//	free_mat(matC);
+//}
 
 
 int main()
 {
 	omp_set_num_threads(8);
-	for (int i = 0;i < 4;++i) {
-		std::cout << "file " << i + 1 << ":" << std::endl;
-		do_mat_mult(std::to_string(i + 1));
-	}
+	//for (int i = 0;i < 4;++i) {
+	//	std::cout << "file " << i + 1 << ":" << std::endl;
+	//	do_mat_mult(std::to_string(i + 1));
+	//}
 
-
-
-	//size_t n1, n2, n3;
-	//n1 = 1 << 13;
-	//n2 = 1 << 14;
-	//n3 = 1 << 13;
-	//double** A = create_mat(n1, n2);
-	//double** B = create_mat(n2, n3);
-	////print_mat(A, n1, n2);
-	////print_mat(B, n2, n3);
-	//double** C = blocked_matrix_mult(A, n1, n2, B, n2, n3);
-	////print_mat(C, n1, n3);
-	//mat_free(A);
-	//mat_free(B);
-	//mat_free(C);
+	size_t n1, n2, n3;
+	n1 = 1 << 13;
+	n2 = 1 << 14;
+	n3 = 1 << 13;
+	double** A = create_mat(n1, n2);
+	double** B = create_mat(n2, n3);
+	//print_mat(A, n1, n2);
+	//print_mat(B, n2, n3);
+	double** C = blocked_matrix_mult(A, n1, n2, B, n2, n3);
+	//print_mat(C, n1, n3);
+	//save_mat(C, n1, n3, "matC.dat");
+	free_mat(A);
+	free_mat(B);
+	free_mat(C);
 }
